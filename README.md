@@ -249,7 +249,7 @@ Prerequisites: Node.js 22.13 or newer and Python 3.
 ```bash
 git clone https://github.com/srvnnithya/Trace.git
 cd Trace
-npm install
+npm ci
 
 cp .dev.vars.example .dev.vars
 python3 -m venv .venv
