@@ -6,9 +6,27 @@ import {
   isIndianCashMarketOpen,
   parseTwelveDataQuote,
   parseYfinanceQuote,
+  providerFailureMessage,
   providerPriceDifference,
   providerPricesConflict,
 } from '../lib/fallback-market-data';
+
+void test('provider quota errors are safe and actionable', () => {
+  assert.equal(
+    providerFailureMessage(
+      'Twelve Data',
+      new Error('You have run out of API credits for the current minute.'),
+    ),
+    'Twelve Data rate limit reached. Showing last cached prices; TRACE will retry after the five-minute refresh window.',
+  );
+  assert.equal(
+    providerFailureMessage(
+      'Yahoo Finance',
+      new SyntaxError('Unexpected token in provider response'),
+    ),
+    'Yahoo Finance is unavailable. Showing last cached prices.',
+  );
+});
 
 void test('parses a Twelve Data NSE quote with source metadata', () => {
   const parsed = parseTwelveDataQuote({

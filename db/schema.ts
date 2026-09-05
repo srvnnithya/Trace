@@ -183,3 +183,12 @@ export const sessionCheckpointSnapshots = sqliteTable(
     ),
   ],
 );
+
+export const marketRefreshState = sqliteTable('market_refresh_state', {
+  watchlistId: text('watchlist_id')
+    .primaryKey()
+    .references(() => watchlists.id, { onDelete: 'cascade' }),
+  lastAttemptAt: text('last_attempt_at').notNull(),
+  lastResult: text('last_result').notNull(),
+  message: text('message'),
+});

@@ -8,6 +8,7 @@ void test('session checkpoints preserve one exact snapshot per instrument', () =
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(readFileSync('drizzle/0000_sweet_wolfpack.sql', 'utf8'));
   db.exec(readFileSync('drizzle/0001_sleepy_mystique.sql', 'utf8'));
+  db.exec(readFileSync('drizzle/0002_remarkable_manta.sql', 'utf8'));
 
   db.exec(`
     INSERT INTO users VALUES ('user', 'Local user', '2026-09-05T00:00:00Z');
@@ -119,5 +120,53 @@ void test('session checkpoints preserve one exact snapshot per instrument', () =
     .prepare('SELECT COUNT(*) AS count FROM session_checkpoint_snapshots')
     .get() as { count: number };
   assert.equal(remaining.count, 0);
+  db.close();
+});
+
+void test('the shared market refresh lease blocks repeated provider calls', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec(readFileSync('drizzle/0000_sweet_wolfpack.sql', 'utf8'));
+  db.exec(readFileSync('drizzle/0001_sleepy_mystique.sql', 'utf8'));
+  db.exec(readFileSync('drizzle/0002_remarkable_manta.sql', 'utf8'));
+  db.exec(`
+    INSERT INTO users VALUES ('user', 'Local user', '2026-09-05T00:00:00Z');
+    INSERT INTO watchlists VALUES ('watchlist', 'user', 'Test list', 'NIFTY 50', 0.02, 2, '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z');
+  `);
+  const acquire = db.prepare(`
+    INSERT INTO market_refresh_state
+      (watchlist_id, last_attempt_at, last_result, message)
+    VALUES (?, ?, 'RUNNING', NULL)
+    ON CONFLICT(watchlist_id) DO UPDATE SET
+      last_attempt_at = excluded.last_attempt_at,
+      last_result = 'RUNNING',
+      message = NULL
+    WHERE market_refresh_state.last_attempt_at <= ?
+  `);
+
+  assert.equal(
+    acquire.run(
+      'watchlist',
+      '2026-09-05T00:00:00Z',
+      '2026-09-04T23:55:00Z',
+    ).changes,
+    1,
+  );
+  assert.equal(
+    acquire.run(
+      'watchlist',
+      '2026-09-05T00:01:00Z',
+      '2026-09-04T23:56:00Z',
+    ).changes,
+    0,
+  );
+  assert.equal(
+    acquire.run(
+      'watchlist',
+      '2026-09-05T00:06:00Z',
+      '2026-09-05T00:01:00Z',
+    ).changes,
+    1,
+  );
   db.close();
 });

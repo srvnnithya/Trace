@@ -10,6 +10,7 @@ import {
   fetchTwelveDataQuote,
   fetchYfinanceQuote,
   isIndianCashMarketOpen,
+  providerFailureMessage,
   providerPriceDifference,
   type MarketHistoryMetrics,
   type MarketQuote,
@@ -465,8 +466,7 @@ const BENCHMARK_TRADING_SYMBOLS: Record<string, string> = {
 const waitForRateLimit = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 125));
 
-const yfinanceServiceUrl = () =>
-  env.YFINANCE_SERVICE_URL?.trim() || 'http://127.0.0.1:8765';
+const yfinanceServiceUrl = () => env.YFINANCE_SERVICE_URL?.trim() || null;
 
 const marketDataConfigured = () =>
   Boolean(env.TWELVE_DATA_API_KEY?.trim() || yfinanceServiceUrl());
@@ -474,7 +474,36 @@ const marketDataConfigured = () =>
 export async function refreshMarketData(watchlistId: string, force = true) {
   await seedDemoData();
   const twelveDataKey = env.TWELVE_DATA_API_KEY?.trim();
+  const yfinanceUrl = yfinanceServiceUrl();
   const db = rawDb();
+  const now = new Date();
+  const attemptedAt = now.toISOString();
+  const cooldownCutoff = new Date(now.getTime() - 5 * 60_000).toISOString();
+  const lease = await db
+    .prepare(
+      `INSERT INTO market_refresh_state
+         (watchlist_id, last_attempt_at, last_result, message)
+       VALUES (?, ?, 'RUNNING', NULL)
+       ON CONFLICT(watchlist_id) DO UPDATE SET
+         last_attempt_at = excluded.last_attempt_at,
+         last_result = 'RUNNING',
+         message = NULL
+       WHERE market_refresh_state.last_attempt_at <= ?`,
+    )
+    .bind(watchlistId, attemptedAt, cooldownCutoff)
+    .run();
+  if ((lease.meta.changes ?? 0) === 0) {
+    const state = await db
+      .prepare(
+        'SELECT last_result, message FROM market_refresh_state WHERE watchlist_id = ?',
+      )
+      .bind(watchlistId)
+      .first<{ last_result: string; message: string | null }>();
+    if (state?.last_result === 'FAILED' && state.message) {
+      throw new Error(state.message);
+    }
+    return { provider: 'cached', updated: 0, failed: 0, cached: true };
+  }
   const rows = await db
     .prepare(
       `SELECT i.id AS instrument_id, i.symbol, i.exchange,
@@ -499,7 +528,6 @@ export async function refreshMarketData(watchlistId: string, force = true) {
     .bind(watchlistId)
     .all<MarketSyncRow>();
 
-  const now = new Date();
   const pending = rows.results.filter(
     (row) =>
       force ||
@@ -507,6 +535,12 @@ export async function refreshMarketData(watchlistId: string, force = true) {
       now.getTime() - new Date(row.received_at).getTime() >= 5 * 60_000,
   );
   if (!pending.length) {
+    await db
+      .prepare(
+        "UPDATE market_refresh_state SET last_result = 'CACHED', message = NULL WHERE watchlist_id = ?",
+      )
+      .bind(watchlistId)
+      .run();
     return { provider: 'cached', updated: 0, failed: 0, cached: true };
   }
 
@@ -523,22 +557,18 @@ export async function refreshMarketData(watchlistId: string, force = true) {
           row.symbol,
         );
       } catch (error) {
-        providerErrors.add(
-          `Twelve Data: ${error instanceof Error ? error.message : 'unavailable'}`,
-        );
+        providerErrors.add(providerFailureMessage('Twelve Data', error));
       }
     }
-    if (!observation) {
+    if (!observation && yfinanceUrl) {
       try {
         observation = await fetchYfinanceQuote(
-          yfinanceServiceUrl(),
+          yfinanceUrl,
           row.exchange,
           row.symbol,
         );
       } catch (error) {
-        providerErrors.add(
-          `Yahoo Finance: ${error instanceof Error ? error.message : 'unavailable'}`,
-        );
+        providerErrors.add(providerFailureMessage('Yahoo Finance', error));
       }
     }
     if (observation) {
@@ -556,29 +586,37 @@ export async function refreshMarketData(watchlistId: string, force = true) {
   }
 
   if (!fetched.length) {
-    const details = [...providerErrors].slice(0, 3).join('; ');
-    throw new Error(
-      `Market providers unavailable. Showing last cached prices.${details ? ` ${details}` : ''}`,
-    );
+    const message =
+      [...providerErrors][0] ??
+      'No hosted market provider is configured. Showing last cached prices.';
+    await db
+      .prepare(
+        "UPDATE market_refresh_state SET last_result = 'FAILED', message = ? WHERE watchlist_id = ?",
+      )
+      .bind(message, watchlistId)
+      .run();
+    throw new Error(message);
   }
 
   const benchmarkReturns = new Map<string, number>();
-  for (const benchmark of new Set(
-    fetched.map(({ row }) => row.benchmark_symbol),
-  )) {
-    const tradingSymbol = BENCHMARK_TRADING_SYMBOLS[benchmark];
-    if (!tradingSymbol) continue;
-    try {
-      const observation = await fetchYfinanceQuote(
-        yfinanceServiceUrl(),
-        'NSE',
-        tradingSymbol,
-      );
-      benchmarkReturns.set(benchmark, observation.quote.dayReturn);
-    } catch {
-      // Keep the last known benchmark return when an index quote is unavailable.
+  if (yfinanceUrl) {
+    for (const benchmark of new Set(
+      fetched.map(({ row }) => row.benchmark_symbol),
+    )) {
+      const tradingSymbol = BENCHMARK_TRADING_SYMBOLS[benchmark];
+      if (!tradingSymbol) continue;
+      try {
+        const observation = await fetchYfinanceQuote(
+          yfinanceUrl,
+          'NSE',
+          tradingSymbol,
+        );
+        benchmarkReturns.set(benchmark, observation.quote.dayReturn);
+      } catch {
+        // Keep the last known benchmark return when an index quote is unavailable.
+      }
+      await waitForRateLimit();
     }
-    await waitForRateLimit();
   }
 
   const receivedAt = now.toISOString();
@@ -652,6 +690,12 @@ export async function refreshMarketData(watchlistId: string, force = true) {
     );
   }
   await db.batch(statements);
+  await db
+    .prepare(
+      "UPDATE market_refresh_state SET last_result = 'SUCCESS', message = NULL WHERE watchlist_id = ?",
+    )
+    .bind(watchlistId)
+    .run();
   return {
     provider: [...new Set(fetched.map((item) => item.provider))].join(' + '),
     updated: fetched.length,

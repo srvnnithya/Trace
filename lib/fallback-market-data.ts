@@ -22,6 +22,26 @@ export type ProviderQuote = {
   isMarketOpen: boolean;
 };
 
+export function providerFailureMessage(
+  provider: 'Twelve Data' | 'Yahoo Finance',
+  error: unknown,
+) {
+  const detail = error instanceof Error ? error.message : 'unavailable';
+  if (
+    provider === 'Twelve Data' &&
+    /credits|rate.?limit|too many requests/i.test(detail)
+  ) {
+    return 'Twelve Data rate limit reached. Showing last cached prices; TRACE will retry after the five-minute refresh window.';
+  }
+  if (
+    provider === 'Twelve Data' &&
+    /not authorized|not available|subscription|plan|access/i.test(detail)
+  ) {
+    return 'The configured Twelve Data plan does not cover one or more tracked NSE symbols. Showing last cached prices.';
+  }
+  return `${provider} is unavailable. Showing last cached prices.`;
+}
+
 const numberValue = (value: unknown) => {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;

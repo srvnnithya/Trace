@@ -209,14 +209,14 @@ The attention engine is isolated from a specific vendor. The active local chain 
 ```text
 Twelve Data when configured
         ↓ fallback
-Loopback yfinance service using Yahoo Finance data
+Loopback yfinance service using Yahoo Finance data (local development only)
         ↓ fallback
 Latest stored or seeded snapshot
 ```
 
-The yfinance adapter supplies price, volume, 20-day average volume, estimated daily volatility, 52-week range, and the recent price path. Yahoo information can be delayed, so TRACE uses the provider timestamp and does not call it real-time data.
+The yfinance adapter supplies price, volume, 20-day average volume, estimated daily volatility, 52-week range, and the recent price path. Yahoo information can be delayed, so TRACE uses the provider timestamp and does not call it real-time data. Hosted deployments do not attempt to contact a nonexistent loopback service.
 
-The browser requests a refresh when the tab becomes visible and every five minutes while it stays open. New observations append shared snapshots; they never update review baselines. Provider credentials remain server-side in the ignored `.dev.vars` file.
+The browser requests a refresh when the tab becomes visible and every five minutes while it stays open. A persistent per-watchlist lease permits only one provider refresh in each five-minute window across repeated reads, manual refreshes, tabs, and Worker instances. New observations append shared snapshots; they never update review baselines. Provider credentials remain server-side in the ignored `.dev.vars` file or the deployment platform's secret store.
 
 ## Failure handling
 
@@ -226,6 +226,7 @@ The browser requests a refresh when the tab becomes visible and every five minut
 | Duplicate stock            | Prevented by service validation and a database uniqueness constraint                                               |
 | Unknown imported symbol    | Import rejected with the unknown symbols; no partial list is created                                               |
 | Provider unavailable       | Last stored value retained and the failure disclosed ([captured state](docs/screenshots/provider-unavailable.png)) |
+| Provider rate limit        | One shared refresh per five minutes; cached values retained with a concise retry message                         |
 | Stale quote                | Timestamp and stale status shown; score confidence reduced                                                         |
 | Conflicting quote          | Both simulated values shown; score confidence reduced                                                              |
 | Missing review baseline    | No comparison is invented; the user is prompted to review once                                                     |
@@ -238,7 +239,7 @@ The browser requests a refresh when the tab becomes visible and every five minut
 - **Interface:** Vinext, React 19, TypeScript, Tailwind CSS, Base UI
 - **Backend:** Next-compatible server routes and a focused service layer
 - **Persistence:** Cloudflare D1-compatible SQLite through local Miniflare; Drizzle schema and migrations
-- **Market data:** Twelve Data when configured, yfinance/Yahoo fallback, deterministic demo provider
+- **Market data:** Twelve Data when configured, local-only yfinance/Yahoo fallback, deterministic demo provider
 - **Testing and quality:** Node test runner, Oxlint, Oxfmt, production compilation
 
 ## Run locally
@@ -269,7 +270,7 @@ npm run lint
 npm run build
 ```
 
-The current repository has **23 passing tests**, a passing lint run, and a passing production build.
+The current repository has **25 passing tests**, a passing lint run, and a passing production build.
 
 ## What is tested
 
@@ -282,6 +283,7 @@ The suite focuses on product invariants rather than only happy-path endpoints:
 - stale and conflicted confidence penalties;
 - invalid timestamps and stored delayed-state preservation;
 - provider parsing, conflict tolerance, and market-hours freshness;
+- safe provider quota errors and a persistent five-minute refresh lease;
 - missing-baseline behaviour;
 - watchlist import normalization, duplicate removal, and the 100-item batch limit;
 - exact checkpoint-to-instrument-to-snapshot mapping;
@@ -293,7 +295,7 @@ The suite focuses on product invariants rather than only happy-path endpoints:
 
 ## Production scaling approach
 
-The working prototype intentionally targets a reproducible local, single-user environment. Its append-only instrument snapshots and user-specific references already separate shared market state from attention state. A recent-observation guard also avoids unnecessary refreshes within five minutes.
+The working prototype intentionally targets a reproducible local, single-user environment. Its append-only instrument snapshots and user-specific references already separate shared market state from attention state. A persistent per-watchlist lease avoids duplicate provider work within five minutes, including across tabs and Worker instances.
 
 The next production evolution would move provider fetching out of page requests. A scheduled instrument-level ingester with distributed locking would fetch each symbol once, store shared snapshots, and cache the latest state. Authenticated users would store only watchlist membership, preferences, and review references against that shared history. Background batching would precompute assessments, while cursor pagination or row virtualization would support large watchlists.
 
@@ -305,6 +307,7 @@ Current limitations:
 
 - Single-user, local-first state; there is no cross-device account synchronization.
 - Market information may be delayed depending on the active provider.
+- Provider plans determine symbol coverage and display rights; unsupported symbols remain explicitly cached rather than being presented as current.
 - Stored event examples belong to deterministic demo data, not a production news feed.
 - Conflict handling is demonstrated deterministically, not through continuous real multi-provider reconciliation.
 - Regular NSE/BSE hours are considered, but a complete exchange-holiday calendar is not implemented.

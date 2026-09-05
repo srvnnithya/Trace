@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
         );
         break;
       case 'refresh_market':
-        result = await refreshMarketData(stringValue(body.watchlistId));
+        result = await refreshMarketData(stringValue(body.watchlistId), false);
         break;
       case 'scenario': {
         const scenario = stringValue(body.scenario);
