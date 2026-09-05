@@ -1,0 +1,6 @@
+# Local-only market data configuration. Never commit actual credentials.
+# Optional primary NSE provider:
+# TWELVE_DATA_API_KEY=replace_with_your_twelve_data_key
+
+# Started automatically by `npm run dev`.
+YFINANCE_SERVICE_URL=http://127.0.0.1:8765

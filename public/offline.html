@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0b0f17" />
+    <title>TRACE is offline</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #fafaf8;
+        color: #0b0f17;
+        font:
+          16px/1.5 Roboto,
+          Arial,
+          sans-serif;
+      }
+      main {
+        width: min(420px, calc(100% - 40px));
+        padding: 28px;
+        border: 1px solid #e7e8e4;
+        border-radius: 18px;
+        background: white;
+        box-sizing: border-box;
+      }
+      strong {
+        color: #0e6b4e;
+      }
+      p {
+        color: #5b6472;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 11px 16px;
+        background: #0b0f17;
+        color: white;
+        font: inherit;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <strong>TRACE</strong>
+      <h1>You’re offline</h1>
+      <p>
+        A previously cached TRACE screen may still be available. Reconnect to
+        load saved watchlists, run actions, or fetch market changes.
+      </p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>
