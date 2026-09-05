@@ -88,7 +88,10 @@ export async function POST(request: NextRequest) {
         );
         break;
       case 'checkpoint':
-        result = await saveCheckpoint(stringValue(body.watchlistId));
+        result = await saveCheckpoint(
+          stringValue(body.watchlistId),
+          stringValue(body.checkpointId) || undefined,
+        );
         break;
       case 'refresh_market':
         result = await refreshMarketData(stringValue(body.watchlistId));

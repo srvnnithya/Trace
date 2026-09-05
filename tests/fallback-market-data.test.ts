@@ -104,3 +104,22 @@ void test('provider conflicts use the documented 0.8% tolerance', () => {
   );
   assert.equal(providerPricesConflict(100, null), false);
 });
+
+void test('an invalid provider timestamp is unavailable', () => {
+  assert.equal(
+    classifyProviderFreshness('not-a-date', true, new Date()),
+    'UNAVAILABLE',
+  );
+});
+
+void test('a stored delayed quote is never promoted back to live', () => {
+  assert.equal(
+    effectiveFreshnessStatus(
+      'DELAYED',
+      '2026-09-04T05:00:00.000Z',
+      'NSE',
+      new Date('2026-09-04T05:05:00.000Z'),
+    ),
+    'DELAYED',
+  );
+});

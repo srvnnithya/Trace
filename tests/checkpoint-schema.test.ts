@@ -96,6 +96,16 @@ void test('session checkpoints preserve one exact snapshot per instrument', () =
     },
   );
 
+  db.exec(
+    "INSERT OR IGNORE INTO session_checkpoint_snapshots VALUES ('duplicate-delivery', 'checkpoint', 'instrument', 'snapshot')",
+  );
+  const mappingsAfterReplay = db
+    .prepare(
+      "SELECT COUNT(*) AS count FROM session_checkpoint_snapshots WHERE checkpoint_id = 'checkpoint'",
+    )
+    .get() as { count: number };
+  assert.equal(mappingsAfterReplay.count, 1);
+
   assert.throws(
     () =>
       db.exec(

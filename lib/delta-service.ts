@@ -1562,13 +1562,49 @@ export async function updateThresholds(
   return { priceThreshold, volumeThreshold };
 }
 
-export async function saveCheckpoint(watchlistId: string) {
+export async function saveCheckpoint(
+  watchlistId: string,
+  requestedCheckpointId?: string,
+) {
   const db = rawDb();
   const exists = await db
     .prepare('SELECT id FROM watchlists WHERE id = ? AND user_id = ?')
     .bind(watchlistId, DEMO_USER_ID)
     .first<{ id: string }>();
   if (!exists) return { saved: false };
+  const cleanRequestedId = requestedCheckpointId?.trim();
+  if (
+    cleanRequestedId &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      cleanRequestedId,
+    )
+  ) {
+    throw new Error('Checkpoint identifier must be a valid UUID.');
+  }
+  const checkpointId = cleanRequestedId ?? crypto.randomUUID();
+  const existingCheckpoint = await db
+    .prepare(
+      'SELECT watchlist_id FROM session_checkpoints WHERE id = ? AND user_id = ?',
+    )
+    .bind(checkpointId, DEMO_USER_ID)
+    .first<{ watchlist_id: string }>();
+  if (existingCheckpoint && existingCheckpoint.watchlist_id !== watchlistId) {
+    throw new Error('Checkpoint identifier is already in use.');
+  }
+  if (existingCheckpoint) {
+    const mapped = await db
+      .prepare(
+        'SELECT COUNT(*) AS count FROM session_checkpoint_snapshots WHERE checkpoint_id = ?',
+      )
+      .bind(checkpointId)
+      .first<{ count: number }>();
+    return {
+      saved: true,
+      checkpointId,
+      snapshots: Number(mapped?.count ?? 0),
+      idempotentReplay: true,
+    };
+  }
   const snapshots = await db
     .prepare(
       `SELECT wi.instrument_id, ms.id AS snapshot_id
@@ -1584,12 +1620,11 @@ export async function saveCheckpoint(watchlistId: string) {
     )
     .bind(watchlistId, DEMO_USER_ID)
     .all<{ instrument_id: string; snapshot_id: string }>();
-  const checkpointId = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
-        'INSERT INTO session_checkpoints (id, user_id, watchlist_id, created_at, delivered) VALUES (?, ?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO session_checkpoints (id, user_id, watchlist_id, created_at, delivered) VALUES (?, ?, ?, ?, ?)',
       )
       .bind(checkpointId, DEMO_USER_ID, watchlistId, createdAt, 1),
   ];
@@ -1597,7 +1632,7 @@ export async function saveCheckpoint(watchlistId: string) {
     statements.push(
       db
         .prepare(
-          'INSERT INTO session_checkpoint_snapshots (id, checkpoint_id, instrument_id, snapshot_id) VALUES (?, ?, ?, ?)',
+          'INSERT OR IGNORE INTO session_checkpoint_snapshots (id, checkpoint_id, instrument_id, snapshot_id) VALUES (?, ?, ?, ?)',
         )
         .bind(
           crypto.randomUUID(),
@@ -1608,7 +1643,12 @@ export async function saveCheckpoint(watchlistId: string) {
     );
   }
   await db.batch(statements);
-  return { saved: true, checkpointId, snapshots: snapshots.results.length };
+  return {
+    saved: true,
+    checkpointId,
+    snapshots: snapshots.results.length,
+    idempotentReplay: false,
+  };
 }
 
 type Scenario =

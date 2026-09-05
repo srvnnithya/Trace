@@ -34,3 +34,16 @@ void test('empty imports are rejected', () => {
     /no stocks/i,
   );
 });
+
+void test('imports larger than the supported batch are rejected', () => {
+  assert.throws(
+    () =>
+      normalizeWatchlistImport({
+        name: 'Too large',
+        items: Array.from({ length: 101 }, (_, index) => ({
+          symbol: `STOCK${index}`,
+        })),
+      }),
+    /up to 100 stocks/i,
+  );
+});

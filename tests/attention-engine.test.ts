@@ -106,3 +106,20 @@ void test('personal volume threshold changes whether the rule matches', () => {
 void test('scoring is deterministic for the same snapshots', () => {
   assert.deepEqual(assessChange(normal), assessChange(normal));
 });
+
+void test('a stored corporate event contributes context and is marked expected', () => {
+  const result = assessChange({
+    ...normal,
+    currentPrice: 106,
+    eventTitle: 'Quarterly results released',
+  });
+  assert.equal(result.expected, true);
+  assert.ok(result.components.some((component) => component.key === 'event'));
+  assert.match(result.headline, /event-driven/i);
+});
+
+void test('crossing a 52-week boundary adds the level component', () => {
+  const result = assessChange({ ...normal, currentPrice: 141 });
+  assert.ok(result.components.some((component) => component.key === 'level'));
+  assert.ok(result.explanations.some((line) => /52-week high/i.test(line)));
+});

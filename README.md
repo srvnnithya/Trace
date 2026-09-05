@@ -6,6 +6,16 @@ A market watchlist that remembers what you last reviewed and surfaces the change
 
 > TRACE is a smart market watchlist built around one question: what changed since I last checked, and does it actually matter? Instead of ranking stocks by raw price movement, TRACE stores explicit review baselines and compares them with the latest available market state. It evaluates price unusualness, volume anomalies, benchmark-relative movement, events, personal thresholds, and data quality to produce a transparent Attention Score with a plain-language reason. Quiet changes stay quiet. Delayed, stale, unavailable, and conflicting data are surfaced rather than hidden. A deterministic simulator makes the complete return-later workflow reproducible, while the underlying comparison and scoring logic remains real.
 
+## Screenshots
+
+| Attention-ranked dashboard                                                                   | Explainable stock detail                                                                                 |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ![TRACE dashboard showing ranked changes and data freshness](docs/screenshots/dashboard.png) | ![TRACE stock detail showing the Attention Score and its reasons](docs/screenshots/attention-detail.png) |
+
+| Confirmed checkpoint timeline                                                        | Watchlist management                                                                                                         |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| ![TRACE timeline with a confirmed session checkpoint](docs/screenshots/timeline.png) | ![TRACE watchlist management with import, export, thresholds, and stock controls](docs/screenshots/watchlist-management.png) |
+
 ## The problem
 
 Most watchlists are optimized for the present moment: current price, percentage change, charts, and alerts. When someone returns after several hours or days, the useful question is different:
@@ -38,7 +48,7 @@ What changed?
   ↓
 Is the change unusual for this stock?
   ↓
-Is it market-wide or stock-specific?
+How does the move compare with its benchmark?
   ↓
 Can the data be trusted?
   ↓
@@ -52,14 +62,14 @@ The review baseline is persistent. Refreshing the page, reopening TRACE, polling
 TRACE keeps two concepts separate:
 
 - A **review baseline** records the exact snapshot the user has acknowledged for an individual stock.
-- A **session checkpoint** records the exact snapshot for every tracked stock when the user leaves TRACE.
+- A **confirmed session checkpoint** maps every tracked stock to the exact latest stored snapshot at the moment the checkpoint is accepted by the server.
 
 ```text
 User reviews HDFCBANK
         ↓
 Current snapshot becomes its review baseline
         ↓
-User leaves TRACE; per-stock session snapshots are saved
+User saves a checkpoint, or the demo confirms one server-side
         ↓
 Market snapshots continue to arrive
         ↓
@@ -70,7 +80,9 @@ Latest snapshot is compared with both saved references
 Only new meaningful changes are promoted
 ```
 
-Review baselines answer “what changed since I acknowledged this stock?” Session checkpoints answer “what changed while I was away?” Neither is overwritten by a market refresh.
+Review baselines answer “what changed since I acknowledged this stock?” Confirmed session checkpoints answer “what changed after that saved moment?” Neither is overwritten by a market refresh.
+
+TRACE also makes a best-effort automatic checkpoint request when the page becomes hidden or is left. It uses `sendBeacon` when available, falls back to a keepalive request, and reuses one client-generated checkpoint ID so duplicate browser events are idempotent. Browser shutdown cannot guarantee that any final network request is delivered, so the UI does not describe that path as guaranteed. **Save checkpoint** in the Timeline and the server-side `/demo` workflow are the explicit, confirmed paths.
 
 ## Meaningful change and the Attention Score
 
@@ -85,23 +97,25 @@ volatility_score = abs(return_since_review) / max(normal_daily_volatility, 0.01)
 
 The score uses bounded, inspectable components:
 
-| Signal | Maximum contribution |
-| --- | ---: |
-| Price unusualness | 30 |
-| Volume anomaly | 25 |
-| Benchmark-relative movement | 20 |
-| Corporate event | 13 |
-| 52-week high or low crossing | 12 |
-| Unexplained price and volume movement | 8 |
-| Personal threshold match | 5 |
+| Signal                                | Maximum contribution |
+| ------------------------------------- | -------------------: |
+| Price unusualness                     |                   30 |
+| Volume anomaly                        |                   25 |
+| Benchmark-relative movement           |                   20 |
+| Corporate event                       |                   13 |
+| 52-week high or low crossing          |                   12 |
+| Unexplained price and volume movement |                    8 |
+| Personal threshold match              |                    5 |
 
 The combined result is clamped to 0–100 and multiplied by a data-quality factor: live `1.00`, delayed `0.85`, conflicted `0.60`, stale `0.55`, or unavailable `0.30`.
 
-| Score | Meaning |
-| --- | --- |
+The column maxima total 113 by design, but all seven cannot be awarded together: the 13-point corporate-event component and the 8-point unexplained-movement component are mutually exclusive. The highest simultaneously awardable raw score is therefore 105. The final clamp provides five points of corroboration headroom while keeping the interface on a stable 0–100 scale. The score represents attention priority, not probability.
+
+| Score  | Meaning         |
+| ------ | --------------- |
 | 75–100 | Needs attention |
-| 45–74 | Worth noting |
-| 0–44 | Quiet |
+| 45–74  | Worth noting    |
+| 0–44   | Quiet           |
 
 Every highlighted stock explains what changed, the review or session price used for comparison, and which facts made the move meaningful. The engine is deliberately deterministic rather than ML-based so every ranking can be reproduced, inspected, and tested.
 
@@ -206,18 +220,18 @@ The browser requests a refresh when the tab becomes visible and every five minut
 
 ## Failure handling
 
-| Situation | TRACE behaviour |
-| --- | --- |
-| Empty watchlist | Purpose-built empty state with an add-stock action |
-| Duplicate stock | Prevented by service validation and a database uniqueness constraint |
-| Unknown imported symbol | Import rejected with the unknown symbols; no partial list is created |
-| Provider unavailable | Last stored value retained and the failure disclosed |
-| Stale quote | Timestamp and stale status shown; score confidence reduced |
-| Conflicting quote | Both simulated values shown; score confidence reduced |
-| Missing review baseline | No comparison is invented; the user is prompted to review once |
-| Page or market refresh | Review and session baselines remain unchanged |
-| Database failure | Explicit error screen with the actual error and a retry action |
-| Insignificant new snapshot | Not promoted as a meaningful Timeline event |
+| Situation                  | TRACE behaviour                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| Empty watchlist            | Purpose-built empty state with an add-stock action                                   |
+| Duplicate stock            | Prevented by service validation and a database uniqueness constraint                 |
+| Unknown imported symbol    | Import rejected with the unknown symbols; no partial list is created                 |
+| Provider unavailable       | Last stored value retained and the failure disclosed                                 |
+| Stale quote                | Timestamp and stale status shown; score confidence reduced                           |
+| Conflicting quote          | Both simulated values shown; score confidence reduced                                |
+| Missing review baseline    | No comparison is invented; the user is prompted to review once                       |
+| Page or market refresh     | Review baselines remain unchanged; previously confirmed checkpoints remain immutable |
+| Database failure           | Explicit error screen with the actual error and a retry action                       |
+| Insignificant new snapshot | Not promoted as a meaningful Timeline event                                          |
 
 ## Technology
 
@@ -255,7 +269,7 @@ npm run lint
 npm run build
 ```
 
-The current repository has **18 passing tests**, a passing lint run, and a passing production build.
+The current repository has **23 passing tests**, a passing lint run, and a passing production build.
 
 ## What is tested
 
@@ -263,13 +277,16 @@ The suite focuses on product invariants rather than only happy-path endpoints:
 
 - attention score bounds and deterministic output;
 - unusual versus quiet ranking;
+- corporate-event context and 52-week level crossings;
 - benchmark-relative movement and personal thresholds;
 - stale and conflicted confidence penalties;
+- invalid timestamps and stored delayed-state preservation;
 - provider parsing, conflict tolerance, and market-hours freshness;
 - missing-baseline behaviour;
-- watchlist import normalization and duplicate removal;
+- watchlist import normalization, duplicate removal, and the 100-item batch limit;
 - exact checkpoint-to-instrument-to-snapshot mapping;
-- refresh snapshots leaving review and session baselines unchanged;
+- idempotent checkpoint replay preserving one mapping per instrument;
+- refresh snapshots leaving review baselines and confirmed checkpoint mappings unchanged;
 - explicit review changing only the review baseline;
 - duplicate checkpoint mappings being rejected;
 - checkpoint mapping cleanup through database cascades.

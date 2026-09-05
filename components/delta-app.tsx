@@ -36,6 +36,7 @@ import {
   Settings2,
   Share2,
   ShieldCheck,
+  Save,
   Smartphone,
   Sun,
   Trash2,
@@ -454,16 +455,36 @@ export function DeltaApp({
   useEffect(() => {
     const watchlistId = data?.watchlist?.id;
     if (!watchlistId) return;
+    let pendingCheckpointId: string | null = null;
     const checkpoint = () => {
+      pendingCheckpointId ??= crypto.randomUUID();
+      const payload = JSON.stringify({
+        action: 'checkpoint',
+        watchlistId,
+        checkpointId: pendingCheckpointId,
+      });
+      const queued = navigator.sendBeacon?.(
+        '/api/delta',
+        new Blob([payload], { type: 'application/json' }),
+      );
+      if (queued) return;
       void fetch('/api/delta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'checkpoint', watchlistId }),
+        body: payload,
         keepalive: true,
       });
     };
+    const onVisibilityChange = () => {
+      if (document.hidden) checkpoint();
+      else pendingCheckpointId = null;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pagehide', checkpoint);
-    return () => window.removeEventListener('pagehide', checkpoint);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', checkpoint);
+    };
   }, [data?.watchlist?.id]);
 
   const mutate = useCallback(
@@ -981,7 +1002,22 @@ export function DeltaApp({
           />
         )}
         {screen === 'timeline' && (
-          <Timeline data={data} openDetail={openDetail} />
+          <Timeline
+            data={data}
+            busy={busy}
+            openDetail={openDetail}
+            onCheckpoint={() => {
+              if (!data.watchlist) return;
+              void mutate(
+                {
+                  action: 'checkpoint',
+                  watchlistId: data.watchlist.id,
+                  checkpointId: crypto.randomUUID(),
+                },
+                'Session checkpoint saved',
+              ).catch(() => undefined);
+            }}
+          />
         )}
         {screen === 'watchlist' && (
           <Watchlist
@@ -1815,10 +1851,14 @@ function Detail({
 
 function Timeline({
   data,
+  busy,
   openDetail,
+  onCheckpoint,
 }: {
   data: DashboardData;
+  busy: boolean;
   openDetail: (stock: StockView) => void;
+  onCheckpoint: () => void;
 }) {
   const hasMappedCheckpoint = data.checkpointSnapshotCount > 0;
   const active = data.stocks
@@ -1830,13 +1870,23 @@ function Timeline({
     .slice(0, 5);
   return (
     <section className="py-10">
-      <div className="mb-9">
-        <h1 className="text-2xl font-extrabold tracking-[-.04em]">
-          Review timeline
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Last session checkpoint: {dateTime(data.lastCheckpointAt)}
-        </p>
+      <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-[-.04em]">
+            Review timeline
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Last confirmed checkpoint: {dateTime(data.lastCheckpointAt)}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || !data.watchlist}
+          onClick={onCheckpoint}
+        >
+          <Save /> Save checkpoint
+        </Button>
       </div>
       <h2 className="timeline-day">SESSION CONTEXT</h2>
       <TimelineItem
@@ -1848,8 +1898,8 @@ function Timeline({
         }
         detail={
           data.lastCheckpointAt
-            ? 'This records when the page was left. It does not change any stock review baseline.'
-            : 'TRACE creates a session timestamp when this page is left.'
+            ? 'This confirmed checkpoint does not change any stock review baseline.'
+            : 'Save a checkpoint to preserve the exact snapshot for every tracked stock.'
         }
       />
       <h2 className="timeline-day mt-10">LATEST STORED SIGNALS</h2>
