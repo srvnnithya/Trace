@@ -24,7 +24,7 @@ export function migrateLocalDatabase() {
       '--config',
       'wrangler.migrations.jsonc',
     ],
-    { stdio: 'inherit', env: process.env },
+    { stdio: ['ignore', 'inherit', 'inherit'], env: process.env },
   );
 
   if (migration.error || migration.status !== 0) {
