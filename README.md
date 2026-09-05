@@ -2,7 +2,7 @@
 
 A market watchlist that remembers what you last reviewed and surfaces the changes that deserve attention.
 
-## 100-word product pitch
+## Project overview
 
 > TRACE is a smart market watchlist built around one question: what changed since I last checked, and does it actually matter? Instead of ranking stocks by raw price movement, TRACE stores explicit review baselines and compares them with the latest available market state. It evaluates price unusualness, volume anomalies, benchmark-relative movement, events, personal thresholds, and data quality to produce a transparent Attention Score with a plain-language reason. Quiet changes stay quiet. Delayed, stale, unavailable, and conflicting data are surfaced rather than hidden. A deterministic simulator makes the complete return-later workflow reproducible, while the underlying comparison and scoring logic remains real.
 
