@@ -17,7 +17,7 @@ export function migrateLocalDatabase() {
       'd1',
       'migrations',
       'apply',
-      'site-creator-d1',
+      'trace-local-d1',
       '--local',
       '--persist-to',
       '.wrangler/state',
