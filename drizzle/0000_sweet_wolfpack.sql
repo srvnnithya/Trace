@@ -1,4 +1,4 @@
-CREATE TABLE `instruments` (
+CREATE TABLE IF NOT EXISTS `instruments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`symbol` text NOT NULL,
 	`name` text NOT NULL,
@@ -10,8 +10,8 @@ CREATE TABLE `instruments` (
 	`low_52w` real NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uq_instruments_symbol` ON `instruments` (`symbol`);--> statement-breakpoint
-CREATE TABLE `market_snapshots` (
+CREATE UNIQUE INDEX IF NOT EXISTS `uq_instruments_symbol` ON `instruments` (`symbol`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `market_snapshots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`instrument_id` text NOT NULL,
 	`session_number` integer NOT NULL,
@@ -35,9 +35,9 @@ CREATE TABLE `market_snapshots` (
 	FOREIGN KEY (`instrument_id`) REFERENCES `instruments`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uq_market_snapshots_ingestion_key` ON `market_snapshots` (`ingestion_key`);--> statement-breakpoint
-CREATE INDEX `idx_market_snapshots_instrument_session` ON `market_snapshots` (`instrument_id`,`session_number`);--> statement-breakpoint
-CREATE TABLE `review_events` (
+CREATE UNIQUE INDEX IF NOT EXISTS `uq_market_snapshots_ingestion_key` ON `market_snapshots` (`ingestion_key`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_market_snapshots_instrument_session` ON `market_snapshots` (`instrument_id`,`session_number`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `review_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`watchlist_item_id` text NOT NULL,
 	`instrument_id` text NOT NULL,
@@ -48,8 +48,8 @@ CREATE TABLE `review_events` (
 	FOREIGN KEY (`snapshot_id`) REFERENCES `market_snapshots`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE INDEX `idx_review_events_item_time` ON `review_events` (`watchlist_item_id`,`reviewed_at`);--> statement-breakpoint
-CREATE TABLE `session_checkpoints` (
+CREATE INDEX IF NOT EXISTS `idx_review_events_item_time` ON `review_events` (`watchlist_item_id`,`reviewed_at`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `session_checkpoints` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`watchlist_id` text NOT NULL,
@@ -59,14 +59,14 @@ CREATE TABLE `session_checkpoints` (
 	FOREIGN KEY (`watchlist_id`) REFERENCES `watchlists`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `idx_session_checkpoints_user_time` ON `session_checkpoints` (`user_id`,`created_at`);--> statement-breakpoint
-CREATE TABLE `users` (
+CREATE INDEX IF NOT EXISTS `idx_session_checkpoints_user_time` ON `session_checkpoints` (`user_id`,`created_at`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`display_name` text NOT NULL,
 	`created_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `watchlist_items` (
+CREATE TABLE IF NOT EXISTS `watchlist_items` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`watchlist_id` text NOT NULL,
@@ -84,9 +84,9 @@ CREATE TABLE `watchlist_items` (
 	FOREIGN KEY (`last_reviewed_snapshot_id`) REFERENCES `market_snapshots`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uq_watchlist_items_watchlist_instrument` ON `watchlist_items` (`watchlist_id`,`instrument_id`);--> statement-breakpoint
-CREATE INDEX `idx_watchlist_items_watchlist_position` ON `watchlist_items` (`watchlist_id`,`position`);--> statement-breakpoint
-CREATE TABLE `watchlists` (
+CREATE UNIQUE INDEX IF NOT EXISTS `uq_watchlist_items_watchlist_instrument` ON `watchlist_items` (`watchlist_id`,`instrument_id`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_watchlist_items_watchlist_position` ON `watchlist_items` (`watchlist_id`,`position`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `watchlists` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`name` text NOT NULL,
@@ -98,4 +98,4 @@ CREATE TABLE `watchlists` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE INDEX `idx_watchlists_user` ON `watchlists` (`user_id`);
+CREATE INDEX IF NOT EXISTS `idx_watchlists_user` ON `watchlists` (`user_id`);

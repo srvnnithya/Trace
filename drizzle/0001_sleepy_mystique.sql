@@ -1,4 +1,4 @@
-CREATE TABLE `session_checkpoint_snapshots` (
+CREATE TABLE IF NOT EXISTS `session_checkpoint_snapshots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`checkpoint_id` text NOT NULL,
 	`instrument_id` text NOT NULL,
@@ -8,4 +8,4 @@ CREATE TABLE `session_checkpoint_snapshots` (
 	FOREIGN KEY (`snapshot_id`) REFERENCES `market_snapshots`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uq_checkpoint_snapshots_checkpoint_instrument` ON `session_checkpoint_snapshots` (`checkpoint_id`,`instrument_id`);
+CREATE UNIQUE INDEX IF NOT EXISTS `uq_checkpoint_snapshots_checkpoint_instrument` ON `session_checkpoint_snapshots` (`checkpoint_id`,`instrument_id`);

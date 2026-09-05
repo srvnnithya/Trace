@@ -257,7 +257,7 @@ python3 -m venv .venv
 npm run dev
 ```
 
-Open `http://localhost:3000`. The development command starts TRACE and the loopback-only yfinance service. The project uses the committed D1 migrations with project-local Miniflare state. `TWELVE_DATA_API_KEY` is optional; without it, TRACE tries yfinance and then stored snapshots.
+Open `http://localhost:3000`. The development command applies pending committed D1 migrations, starts TRACE, and starts the loopback-only yfinance service. Miniflare state remains project-local. `TWELVE_DATA_API_KEY` is optional; without it, TRACE tries yfinance and then stored snapshots.
 
 Never commit `.dev.vars`. Only `.dev.vars.example`, containing placeholders, belongs in Git.
 

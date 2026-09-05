@@ -12,6 +12,7 @@
     "lint": "oxlint app lib components/delta-app.tsx tests",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "node scripts/migrate-local.mjs",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
