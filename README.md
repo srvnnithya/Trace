@@ -220,18 +220,18 @@ The browser requests a refresh when the tab becomes visible and every five minut
 
 ## Failure handling
 
-| Situation                  | TRACE behaviour                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------ |
-| Empty watchlist            | Purpose-built empty state with an add-stock action                                   |
-| Duplicate stock            | Prevented by service validation and a database uniqueness constraint                 |
-| Unknown imported symbol    | Import rejected with the unknown symbols; no partial list is created                 |
-| Provider unavailable       | Last stored value retained and the failure disclosed                                 |
-| Stale quote                | Timestamp and stale status shown; score confidence reduced                           |
-| Conflicting quote          | Both simulated values shown; score confidence reduced                                |
-| Missing review baseline    | No comparison is invented; the user is prompted to review once                       |
-| Page or market refresh     | Review baselines remain unchanged; previously confirmed checkpoints remain immutable |
-| Database failure           | Explicit error screen with the actual error and a retry action                       |
-| Insignificant new snapshot | Not promoted as a meaningful Timeline event                                          |
+| Situation                  | TRACE behaviour                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Empty watchlist            | Purpose-built empty state with an add-stock action                                                                 |
+| Duplicate stock            | Prevented by service validation and a database uniqueness constraint                                               |
+| Unknown imported symbol    | Import rejected with the unknown symbols; no partial list is created                                               |
+| Provider unavailable       | Last stored value retained and the failure disclosed ([captured state](docs/screenshots/provider-unavailable.png)) |
+| Stale quote                | Timestamp and stale status shown; score confidence reduced                                                         |
+| Conflicting quote          | Both simulated values shown; score confidence reduced                                                              |
+| Missing review baseline    | No comparison is invented; the user is prompted to review once                                                     |
+| Page or market refresh     | Review baselines remain unchanged; previously confirmed checkpoints remain immutable                               |
+| Database failure           | Explicit error screen with the actual error and a retry action                                                     |
+| Insignificant new snapshot | Not promoted as a meaningful Timeline event                                                                        |
 
 ## Technology
 
